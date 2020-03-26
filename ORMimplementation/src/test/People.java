@@ -2,20 +2,28 @@ package test;
 
 import java.util.List;
 
+import annotations.Column;
 import annotations.OneToMany;
 import annotations.PrimaryKey;
 import annotations.Table;
 
 @Table(name = "People")
-public class People {
+public class People {	
+	@Column(name="Name")
+	public String name;
+	
+	@OneToMany()
+	public List<Car> c;
+	
 	@PrimaryKey(name="pid")
-	public final int pid;
+	public int pid;
 	
-	@OneToMany(column="cid")
-	public final List<Car> c;
+	public People() {
+		
+	}
 	
-	public People(int pid,List<Car> c) {
-		this.pid=pid;
+	public People(List<Car> c,String name) {
+		this.name = name;
 		this.c=c;		
 	}
 	

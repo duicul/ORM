@@ -1,18 +1,26 @@
 package connector;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 
 import annotations.PrimaryKey;
 import annotations.Table;
 import exception.CommunicationException;
+import exception.ConstructorException;
 import exception.DbDriverNotFound;
 import orm.ColumnData;
+import orm.ColumnValue;
 import orm.TableData;
+import orm.TableValue;
 
 public class MariaDBConnector extends DatabaseConnector {
 	public final String driver;
@@ -46,27 +54,25 @@ public class MariaDBConnector extends DatabaseConnector {
 			String sql = "CREATE TABLE " + current.table.name();
 			sql+="(";
 			for(ColumnData cd:current.lcd) {
-				String coltype=null;
-				if(cd.t.equals(int.class)||cd.t.equals(Integer.class))
-					coltype="INTEGER";
-				if(cd.t.equals(String.class))
-					coltype="VARCHAR(255)";
-				if(cd.t.equals(char.class))
-					coltype="VARCHAR(1)";
+				String coltype=DatabaseConnector.getDataBaseType(cd.f.getGenericType());
 				if(coltype!=null)
 					if(cd.col!=null)
 						sql+=cd.col.name()+" "+coltype+" , ";
-					else if(cd.pk!=null)
-						sql+=cd.pk.name()+" "+coltype+" , ";
-					else if(cd.otm!=null)
+					/*else if(cd.otm!=null)
 						sql+=cd.otm.column()+" "+coltype+" , ";
 					else if(cd.oto!=null)
-						sql+=cd.oto.column()+" "+coltype+" , ";
+						sql+=cd.oto.column()+" "+coltype+" , ";*/
 			}
-			
 			if(current.pk!=null)
-				sql+=" PRIMARY KEY ( "+current.pk.name()+" )";
+				sql+=current.pk.name()+" "+current.pk.type()+" "+(current.pk.autoincrement()?"AUTO_INCREMENT":"")+" , ";
+			if(current.pk!=null)
+				sql+=" PRIMARY KEY ( "+current.pk.name()+" ) ";
+			if(foreign!=null&&foreign.pk!=null) {
+				sql+=" , "+foreign.pk.name()+" "+foreign.pk.type();
+			}
+				
 			sql+=");";
+			System.out.println(sql);
 	      stmt.executeUpdate(sql);
 	      con.close();   
 	      return true;
@@ -88,15 +94,133 @@ public class MariaDBConnector extends DatabaseConnector {
 	}
 
 	@Override
-	public Criteria setCriteria(Class<?> table) {
-		// TODO Auto-generated method stub
-		return null;
+	public CriteriaSet setCriteria(TableData table,List<TableData> hierarchy) {
+		return new CriteriaSetMariaDb(this,table,hierarchy);
 	}
 
 	@Override
 	public boolean updateTableForeignKey(TableData current,TableData foreign) {
 		// TODO Auto-generated method stub
 		return false;
+	}
+
+	@Override
+	public List<Object> select(CriteriaSet cs) throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException {
+		try{
+			Class.forName(this.driver);  
+			Connection con=DriverManager.getConnection(  
+			"jdbc:mysql://127.0.0.1:3306/"+database,username,password);   
+			Statement stmt=con.createStatement(); 
+			String sql = "SELECT * FROM " +cs.table.table.name();
+			if(cs.hierarchy!=null)
+				for(TableData td:cs.hierarchy)
+					sql+=" , "+td.table.name();
+			sql+=" WHERE ";
+			if(cs.crits.size()>0)
+				sql+=" "+cs.crits.get(0).getCriteria()+"  ";
+			for(int i=1;i<cs.crits.size();i++)
+				sql+=" AND "+cs.crits.get(i).getCriteria()+"  ";
+			sql+=" AND ";
+			if(cs.hierarchy!=null) {
+				if(cs.hierarchy.size()>0)
+					sql+=cs.table.table.name()+"."+cs.table.pk.name()+"="+cs.hierarchy.get(0).table.name()+"."+cs.hierarchy.get(0).pk.name();
+				for(int i=1;i<cs.hierarchy.size();i++) {
+					TableData prev,curr;
+					prev=cs.hierarchy.get(i-1);
+					curr=cs.hierarchy.get(i);
+					sql+=" AND "+prev.table.name()+"."+prev.pk.name()+"="+curr.table.name()+"."+curr.pk.name();}
+			}
+			sql+=cs.getOrder();
+			Constructor<?> cons=cs.table.class_name.getConstructor();
+			Object ret;
+			System.out.println(sql);
+			ResultSet rs=stmt.executeQuery(sql);
+			ResultSetMetaData rsmd = rs.getMetaData();
+			int no_col=rsmd.getColumnCount();
+			List<Object> retlo=new ArrayList<Object>();
+			while(rs.next()) {
+				ret=cons.newInstance();
+				for(int i=1;i<=no_col;i++) {
+					String col_name=rsmd.getColumnName(i);
+					for(ColumnData cd:cs.table.lcd) {
+						if(cd.col!=null&&col_name.equals(cd.col.name())) {
+							Object obj=rs.getObject(i);
+							cd.f.set(ret, obj);
+							break;}
+						if(cs.table.pk!=null&&col_name.equals(cs.table.pk.name())) {
+							Object obj=rs.getObject(i);
+							cs.table.pk_field.set(ret, obj);
+							break;}
+					}
+					for(TableData td:cs.hierarchy) {
+						for(ColumnData cd:td.lcd) {
+							if(cd.col!=null&&col_name.equals(cd.col.name())) {
+								Object obj=rs.getObject(i);
+								cd.f.set(ret, obj);
+								break;}
+						}
+					}
+				}
+				retlo.add(ret);
+	      }
+	      con.close();   
+	      return retlo;
+		}catch(NoSuchMethodException e) {
+			e.printStackTrace();
+			throw new ConstructorException();
+		}catch (SQLException e) {
+			e.printStackTrace();
+			throw new CommunicationException();
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+			throw new DbDriverNotFound();
+		} catch (InstantiationException |IllegalAccessException|IllegalArgumentException |InvocationTargetException e) {
+			e.printStackTrace();
+			throw new ConstructorException();
+		}
+	}
+
+	@Override
+	public boolean insert(Object o, TableValue table) {
+		try{  
+			Class.forName(this.driver);  
+			Connection con=DriverManager.getConnection(  
+			"jdbc:mysql://127.0.0.1:3306/"+database,username,password);   
+			Statement stmt=con.createStatement(); 
+			String sql = "INSERT INTO " + table.table.name();
+			String decl="",val="";
+			decl+="(";
+			val+="(";
+			int start=0;
+			if(table.pk!=null&&(!table.pk.autoincrement()||table.pk_val==null)) {
+				String quote=(table.pk_val instanceof String)?"'":"";
+				decl+=" "+table.pk.name()+" ";
+				val+=" "+quote+table.pk_val+quote+" ";}
+			else {
+				start=1;
+				ColumnValue cv=table.lcv.get(0);
+				if(cv.col!=null) {
+					String quote=(cv.value instanceof String)?"'":"";
+					decl+=" "+cv.col.name()+" ";
+					val+=" "+quote+cv.value+quote+" ";}
+			}
+			for(;start<table.lcv.size();start++) {
+				ColumnValue cv=table.lcv.get(start);
+				if(cv.col!=null) {
+					String quote=(cv.value instanceof String)?"'":"";
+					decl+=" , "+cv.col.name()+" ";
+					val+=" , "+quote+cv.value+quote+" ";}
+			}
+			decl+=" ) ";
+			val+=" ) ";
+			sql+=decl+" VALUES "+val;
+			System.out.println(sql);
+	      stmt.executeUpdate(sql);
+	      con.close();   
+	      return true;
+			}catch(Exception e)
+		{ e.printStackTrace();
+		return false;}
 	}
 
 }

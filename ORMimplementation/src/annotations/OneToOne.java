@@ -6,5 +6,5 @@ import java.lang.annotation.Retention;
 
 @Retention(RUNTIME)
 public @interface OneToOne {
-	String column();
+	public String table() default "";
 }

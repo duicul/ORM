@@ -3,19 +3,28 @@ package connector;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class Criteria {
-	protected List<Pair<String,String>> rests;
-	protected String order;
-	public final DatabaseConnector dbc;
-	public Criteria(DatabaseConnector dbc) {
-		this.dbc=dbc;
-		this.rests=new ArrayList<Pair<String,String>>();
+import annotations.Table;
+import exception.CommunicationException;
+import exception.ConstructorException;
+import exception.DbDriverNotFound;
+import exception.NoSuchColumnException;
+import orm.ColumnData;
+import orm.TableData;
+
+public class Criteria {
+	private final Table t;
+	private final String rest;
+	public Criteria(Table t,String rest) {
+		this.t=t;
+		this.rest=rest;
 	}
-	public abstract void gt(Object o);
-	public abstract void lt(Object o);
-	public abstract void eq(Object o);
-	public abstract void like(String s);
-	public abstract void orderAsc();
-	public abstract void orderDesc();
+	
+	public String getCriteria() {
+		return this.t.name()+this.rest;
+	}
+	
+	public Table getCriteriaTable() {
+		return this.t;
+	}
 	
 }

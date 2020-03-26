@@ -5,17 +5,21 @@ import java.util.List;
 import annotations.*;
 
 @Table(name="Student")
-public class Student extends People {
-
-	@PrimaryKey(name="sid")
-	public final int sid;
-	
+public class Student extends People {	
 	@Column(name="grade")
-	public final int grade;
+	public int grade;
 	
-	public Student(int pid,int sid, List<Car> c,int grade) {
-		super(pid, c);
-		this.sid = sid;
+	@PrimaryKey(name="sid")
+	public int sid;
+	
+	public Student() {
+		
+	}
+	
+	public Student(List<Car> c,int grade,String name) {
+		super(c,name);
 		this.grade=grade;
 	}
+	
+	
 }

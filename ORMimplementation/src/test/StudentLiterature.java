@@ -8,15 +8,19 @@ import annotations.Table;
 
 @Table(name="StudentLiterature")
 public class StudentLiterature extends Student {
-	@PrimaryKey(name="slid")
-	public final int slid;
 	
 	@Column(name="specialization")
-	public final String spec;
+	public String spec;
 	
-	public StudentLiterature(int pid,int sid,int slid, List<Car> c, int grade,String spec) {
-		super(pid,sid, c, grade);
-		this.slid = slid;
+	@PrimaryKey(name="slid")
+	public int slid;
+	
+	public StudentLiterature() {
+		
+	}
+	
+	public StudentLiterature(List<Car> c, int grade,String spec,String name) {
+		super(c, grade,name);
 		this.spec = spec;
 	}
 
