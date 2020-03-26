@@ -10,6 +10,7 @@ import exception.ConstructorException;
 import exception.DbDriverNotFound;
 import orm.ColumnData;
 import orm.TableData;
+import orm.TableHierarchyData;
 import orm.TableValue;
 
 public abstract class DatabaseConnector {
@@ -38,14 +39,16 @@ public abstract class DatabaseConnector {
 		return null;
 	}
 	
-	public abstract CriteriaSet setCriteria(TableData table,List<TableData> hierarchy);
+	public abstract CriteriaSet setCriteria(TableData table,TableHierarchyData hierarchy);
 	public abstract boolean checkTable(String table_name) throws DbDriverNotFound, CommunicationException;
 	public abstract boolean createTable(TableData current,TableData foreign);
 	public abstract boolean updateTableForeignKey(TableData current,TableData foreign);
 	public abstract Object get(Class<?> dao,String Column,String condition);
 	public abstract boolean add(Class<?> dao,Object o);
 	public abstract List<Object> select(CriteriaSet cs) throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException;
-	public abstract boolean insert(Object o, TableValue table);
+	public abstract boolean insert(Object o, TableValue table,TableHierarchyData thd);
+
+	public abstract boolean insert(Object o, TableValue table, PrimaryKey foreign,Object foreign_val);
 	
 	
 }

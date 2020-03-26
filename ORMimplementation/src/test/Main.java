@@ -17,19 +17,19 @@ public class Main {
 	 //SELECT LAST_INSERT_ID();
 	 ORMLoader ol=new ORMLoader(dbc);
 	 //ol.get(Student.class,"name", "Popa");
-	 CriteriaSet c=ol.setCriteria(StudentLiterature.class);
-	 c.lt("grade", 8);
-	 //c.like("Name", "Popa%");
-	 c.orderAsc("grade");
+	 CriteriaSet c=ol.setCriteria(People.class);
+	 //c.lt("grade", 8);
+	 c.like("Name", "Gic%");
+	 //c.orderAsc("grade");
 	 ol.insert(new People(null, "Gica"));
 	 try {
 		List<Object> ls=c.extract();
 		System.out.println(ls);
 		for(Object o:ls) {
-			StudentLiterature sl=(StudentLiterature) o;
-			System.out.println(sl.name+" "+sl.grade+" "+sl.spec+" "+sl.c+" "+sl.pid+" "+sl.sid+" "+sl.slid);
+			People sl=(People) o;
+			System.out.println(sl.name+" "+sl.pid);
 		}
-	} catch (ConstructorException | SecurityException | DbDriverNotFound | CommunicationException e1) {
+	} catch ( DbDriverNotFound | CommunicationException e1) {
 		// TODO Auto-generated catch block
 		e1.printStackTrace();
 	}

@@ -16,6 +16,7 @@ import connector.Criteria;
 import connector.CriteriaSet;
 import connector.DatabaseConnector;
 import orm.TableData;
+import exception.AutoIncrementWrongTypeException;
 import exception.CommunicationException;
 import exception.DbDriverNotFound;
 
@@ -28,7 +29,7 @@ public class ORMLoader {
  }
  
  public List<Object> get(Class<?> class_name,String field,String match) throws DbDriverNotFound, CommunicationException{
-	 List<TableData> hierarchy;
+	 TableHierarchyData hierarchy;
 	for(Annotation a:class_name.getAnnotations()) {
 		if(a instanceof Table && !dbc.checkTable(((Table) a).name())) {
 			hierarchy=this.structuretablesuper((Table) a, class_name);
@@ -40,12 +41,13 @@ public class ORMLoader {
  
  
  
- private List<TableData>  structuretablesuper(Table t,Class<?> class_name) {
+ private TableHierarchyData  structuretablesuper(Table t,Class<?> class_name) {
 	 Table table_super=null,taux=t;
 	 PrimaryKey primary_super=null,primary_current=null;
 	 Class<?> current_class=class_name;
 	 TableData tab_sup_data=null,tab_cur_data=null;
 	 List<TableData> hierarchy=new ArrayList<TableData> ();
+	 List<TableHierarchyData> foreign_table=null;
 	 while(!current_class.equals(Object.class)&&taux!=null) {
 		 tab_sup_data=null;
 		 Class<?> super_cls=current_class.getSuperclass();
@@ -74,7 +76,9 @@ public class ORMLoader {
 					 if(((ParameterizedType) list_oneto).getActualTypeArguments().length>0)
 						 foreign_oneto=paramtype.getActualTypeArguments()[0];
 				 }
-				 this.structuretablesuper(this.getTable((Class<?>) foreign_oneto), (Class<?>) foreign_oneto);
+				 if(foreign_table==null)
+					 foreign_table=new ArrayList<TableHierarchyData>();
+				 foreign_table.add(this.structuretablesuper(this.getTable((Class<?>) foreign_oneto), (Class<?>) foreign_oneto));
 				 System.out.println((Class<?>) foreign_oneto);
 				 continue;
 			 }
@@ -89,7 +93,7 @@ public class ORMLoader {
 		 else break;
 		 
 	 }
-	return hierarchy;
+	return new TableHierarchyData(hierarchy, this.convertTable(class_name,t),foreign_table);
  }
 
  
@@ -99,6 +103,10 @@ public class ORMLoader {
 	 String key_current_name=current_table==null?"":current_table.pk==null?"":current_table.pk.name();
 	 String foreign_table_name=super_table==null?"":super_table.table.name();
 	 String foreign_key_name=super_table==null?"":super_table.pk==null?"":super_table.pk.name();
+	 if(current_table!=null&&current_table.pk!=null&&current_table.pk.autoincrement()&&!(current_table.pk_field.getType().equals(int.class)||current_table.pk_field.getType().equals(Integer.class)))
+			throw new AutoIncrementWrongTypeException(current_table.table.name()+"."+current_table.pk.name());
+	 if(super_table!=null&&super_table.pk!=null&&super_table.pk.autoincrement()&&!(super_table.pk_field.getType().equals(int.class)||super_table.pk_field.getType().equals(Integer.class)))
+			throw new AutoIncrementWrongTypeException(super_table.table.name()+"."+super_table.pk.name());
 	 dbc.createTable(current_table,super_table);
 	 System.out.println("Create table "+table_current_name+" primary key: "+key_current_name+" with foreign table: "+foreign_table_name+" foreign key: "+foreign_key_name);
  }
@@ -163,7 +171,7 @@ public class ORMLoader {
  
  public CriteriaSet setCriteria(Class<?> table) {
 	 TableData td=this.convertTable(table, this.getTable(table));
-	 List<TableData> hierarchy=this.structuretablesuper(td.table, table);
+	 TableHierarchyData hierarchy=this.structuretablesuper(td.table, table);
 	 return dbc.setCriteria(td,hierarchy);
  }
  
@@ -185,13 +193,13 @@ return null;
  
  public boolean insert(Object o) {
 	 TableData td=this.convertTable(o.getClass(),this.getTable(o.getClass()));
-	 List<TableData> hierarchy;
+	 TableHierarchyData hierarchy = null;
 	 try {
 		if(!dbc.checkTable(td.table.name()))
 			hierarchy=this.structuretablesuper(td.table, o.getClass());
 	} catch (DbDriverNotFound | CommunicationException e) {
 		e.printStackTrace();}
-	 return this.dbc.insert(o,this.convertTableValue(td, o));
+	 return this.dbc.insert(o,this.convertTableValue(td, o),hierarchy);
  }
 
  

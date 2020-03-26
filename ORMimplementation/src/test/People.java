@@ -15,7 +15,7 @@ public class People {
 	@OneToMany()
 	public List<Car> c;
 	
-	@PrimaryKey(name="pid")
+	@PrimaryKey(name="pid",autoincrement=true)
 	public int pid;
 	
 	public People() {

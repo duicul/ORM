@@ -17,4 +17,6 @@ public abstract class TableInfo {
 		this.pk_field=pk_field;
 		this.class_name=class_name;
 	}
+	
+	public abstract boolean addForeignComposition(TableInfo tab);
 }

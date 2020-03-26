@@ -14,12 +14,15 @@ import java.util.List;
 
 import annotations.PrimaryKey;
 import annotations.Table;
+import exception.AutoIncrementValueException;
+import exception.AutoIncrementWrongTypeException;
 import exception.CommunicationException;
 import exception.ConstructorException;
 import exception.DbDriverNotFound;
 import orm.ColumnData;
 import orm.ColumnValue;
 import orm.TableData;
+import orm.TableHierarchyData;
 import orm.TableValue;
 
 public class MariaDBConnector extends DatabaseConnector {
@@ -63,10 +66,9 @@ public class MariaDBConnector extends DatabaseConnector {
 					else if(cd.oto!=null)
 						sql+=cd.oto.column()+" "+coltype+" , ";*/
 			}
-			if(current.pk!=null)
+			if(current.pk!=null) {
 				sql+=current.pk.name()+" "+current.pk.type()+" "+(current.pk.autoincrement()?"AUTO_INCREMENT":"")+" , ";
-			if(current.pk!=null)
-				sql+=" PRIMARY KEY ( "+current.pk.name()+" ) ";
+				sql+=" PRIMARY KEY ( "+current.pk.name()+" ) ";}
 			if(foreign!=null&&foreign.pk!=null) {
 				sql+=" , "+foreign.pk.name()+" "+foreign.pk.type();
 			}
@@ -94,7 +96,7 @@ public class MariaDBConnector extends DatabaseConnector {
 	}
 
 	@Override
-	public CriteriaSet setCriteria(TableData table,List<TableData> hierarchy) {
+	public CriteriaSet setCriteria(TableData table,TableHierarchyData hierarchy) {
 		return new CriteriaSetMariaDb(this,table,hierarchy);
 	}
 
@@ -113,22 +115,28 @@ public class MariaDBConnector extends DatabaseConnector {
 			Statement stmt=con.createStatement(); 
 			String sql = "SELECT * FROM " +cs.table.table.name();
 			if(cs.hierarchy!=null)
-				for(TableData td:cs.hierarchy)
+				for(TableData td:cs.hierarchy.hierarchy)
 					sql+=" , "+td.table.name();
-			sql+=" WHERE ";
-			if(cs.crits.size()>0)
+			boolean crits=false;
+			
+			if(cs.crits.size()>0) {
+				crits=true;
+				sql+=" WHERE ";
 				sql+=" "+cs.crits.get(0).getCriteria()+"  ";
-			for(int i=1;i<cs.crits.size();i++)
-				sql+=" AND "+cs.crits.get(i).getCriteria()+"  ";
-			sql+=" AND ";
+				for(int i=1;i<cs.crits.size();i++)
+					sql+=" AND "+cs.crits.get(i).getCriteria()+"  ";}
 			if(cs.hierarchy!=null) {
-				if(cs.hierarchy.size()>0)
-					sql+=cs.table.table.name()+"."+cs.table.pk.name()+"="+cs.hierarchy.get(0).table.name()+"."+cs.hierarchy.get(0).pk.name();
-				for(int i=1;i<cs.hierarchy.size();i++) {
-					TableData prev,curr;
-					prev=cs.hierarchy.get(i-1);
-					curr=cs.hierarchy.get(i);
-					sql+=" AND "+prev.table.name()+"."+prev.pk.name()+"="+curr.table.name()+"."+curr.pk.name();}
+				if(cs.hierarchy.hierarchy.size()>0) {
+					if(crits)
+						sql+=" AND ";
+					else sql+=" WHERE ";
+					sql+=cs.table.table.name()+"."+cs.table.pk.name()+"="+cs.hierarchy.hierarchy.get(0).table.name()+"."+cs.hierarchy.hierarchy.get(0).pk.name();
+					for(int i=1;i<cs.hierarchy.hierarchy.size();i++) {
+						TableData prev,curr;
+						prev=cs.hierarchy.hierarchy.get(i-1);
+						curr=cs.hierarchy.hierarchy.get(i);
+						sql+=" AND "+prev.table.name()+"."+prev.pk.name()+"="+curr.table.name()+"."+curr.pk.name();}
+				}
 			}
 			sql+=cs.getOrder();
 			Constructor<?> cons=cs.table.class_name.getConstructor();
@@ -152,7 +160,7 @@ public class MariaDBConnector extends DatabaseConnector {
 							cs.table.pk_field.set(ret, obj);
 							break;}
 					}
-					for(TableData td:cs.hierarchy) {
+					for(TableData td:cs.hierarchy.hierarchy) {
 						for(ColumnData cd:td.lcd) {
 							if(cd.col!=null&&col_name.equals(cd.col.name())) {
 								Object obj=rs.getObject(i);
@@ -179,9 +187,16 @@ public class MariaDBConnector extends DatabaseConnector {
 			throw new ConstructorException();
 		}
 	}
+	@Override
+	public boolean insert(Object o, TableValue table,TableHierarchyData hierarchy) {
+		if(hierarchy==null)
+			return false;
+		//for(TableData td:hierarchy)
+			return this.insert(o, table,null,null);
+	}
 
 	@Override
-	public boolean insert(Object o, TableValue table) {
+	public boolean insert(Object o, TableValue table,PrimaryKey foreign,Object foreign_val) {
 		try{  
 			Class.forName(this.driver);  
 			Connection con=DriverManager.getConnection(  
@@ -192,14 +207,25 @@ public class MariaDBConnector extends DatabaseConnector {
 			decl+="(";
 			val+="(";
 			int start=0;
-			if(table.pk!=null&&(!table.pk.autoincrement()||table.pk_val==null)) {
-				String quote=(table.pk_val instanceof String)?"'":"";
-				decl+=" "+table.pk.name()+" ";
-				val+=" "+quote+table.pk_val+quote+" ";}
+			boolean current_content=false;
+			if(table.pk!=null) {
+				if(table.pk.autoincrement()&&!(table.pk_field.getType().equals(int.class)||table.pk_field.getType().equals(Integer.class)))
+					throw new AutoIncrementWrongTypeException(table.pk.name());
+				if(!table.pk.autoincrement()&&(table.pk_field.getType().equals(int.class)||table.pk_field.getType().equals(Integer.class))&&(Integer)table.pk_val==0) {
+					throw new AutoIncrementValueException(table.pk.name());
+				}
+				if((!table.pk.autoincrement())) {
+					current_content=true;
+					String quote=(table.pk_val instanceof String)?"'":"";
+					decl+=" "+table.pk.name()+" ";
+					val+=" "+quote+table.pk_val+quote+" ";}
+			}
 			else {
-				start=1;
+				
 				ColumnValue cv=table.lcv.get(0);
 				if(cv.col!=null) {
+					current_content=true;
+					start=1;
 					String quote=(cv.value instanceof String)?"'":"";
 					decl+=" "+cv.col.name()+" ";
 					val+=" "+quote+cv.value+quote+" ";}
@@ -207,9 +233,21 @@ public class MariaDBConnector extends DatabaseConnector {
 			for(;start<table.lcv.size();start++) {
 				ColumnValue cv=table.lcv.get(start);
 				if(cv.col!=null) {
+					current_content=true;
+					if(start!=0) {
+						decl+=" , ";
+						val+=" , ";}
 					String quote=(cv.value instanceof String)?"'":"";
-					decl+=" , "+cv.col.name()+" ";
-					val+=" , "+quote+cv.value+quote+" ";}
+					decl+=cv.col.name()+" ";
+					val+=quote+cv.value+quote+" ";}
+			}
+			if(foreign!=null&&foreign_val!=null) {
+				if(current_content) {
+					decl+=" , ";
+					val+=" , ";}
+				String quote=(foreign_val instanceof String)?"'":"";
+				decl+=foreign.name()+" ";
+				val+=quote+foreign_val+quote+" ";
 			}
 			decl+=" ) ";
 			val+=" ) ";
