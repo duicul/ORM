@@ -42,18 +42,18 @@ public abstract class DatabaseConnector {
 	public abstract boolean checkTable(String table_name) throws DbDriverNotFound, CommunicationException;
 	public abstract boolean createTable(TableData current,TableData foreign);
 	public abstract boolean updateTableForeignKey(TableData current,TableData foreign);
-	public abstract Object get(Class<?> dao,String Column,String condition);
-	public abstract boolean add(Class<?> dao,Object o);
 	public abstract List<Object> select(CriteriaSet cs) throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException;
 	/**
 	 * 
 	 * @param o
-	 * @param thd
-	 * @return Inserted id
+	 * @param table
+	 * @param foreign
+	 * @param foreign_val
+	 * @param foreignpks
+	 * @return Insert id
 	 */
-	public abstract int insert(Object o,TableHierarchyValue thd);
-
-	public abstract int insert(Object o, TableValue table, PrimaryKey foreign,Object foreign_val);
+	public abstract int insert(Object o, TableValue table, PrimaryKey foreign,Object foreign_val,Pair<PrimaryKey,Object> foreignpks);
 	
-	
+	public abstract boolean dropTable(TableData t);
+	public abstract boolean cleanTable(TableData t);
 }

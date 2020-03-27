@@ -24,14 +24,20 @@ public class Main {
 	 //c.orderAsc("grade");
 	 List<Car> lc=new ArrayList<Car>();
 	 lc.add(new Car("a","b","c"));
+	 lc.add(new Car("d","e","f"));
 	 ol.insert(new People(null,"Fane"));
-	 ol.insert(new StudentLiterature(lc,9, "Drama", "Gica"));
+	 ol.insert(new StudentLiterature(lc,9, "Drama", "Gica",new Nota((float) 7.8)));
 	 try {
 		List<Object> ls=c.extract();
 		System.out.println(ls);
 		for(Object o:ls) {
 		      StudentLiterature sl=(StudentLiterature) o;
+		      System.out.println();
 			System.out.println(sl.name+" "+sl.grade+" "+sl.spec+" "+sl.pid+" "+sl.sid+" "+sl.slid);
+			if(sl.c!=null)
+			for(Car cr:sl.c)
+			      System.out.println(cr.cid+" "+cr.color+" "+cr.model+" "+cr.reg_no);
+			System.out.println();
 		}
 	} catch ( DbDriverNotFound | CommunicationException e1) {
 		// TODO Auto-generated catch block

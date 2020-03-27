@@ -19,8 +19,8 @@ public class StudentLiterature extends Student {
 		
 	}
 	
-	public StudentLiterature(List<Car> c, int grade,String spec,String name) {
-		super(c, grade,name);
+	public StudentLiterature(List<Car> c, int grade,String spec,String name,Nota n) {
+		super(c, grade,name, n);
 		this.spec = spec;
 	}
 

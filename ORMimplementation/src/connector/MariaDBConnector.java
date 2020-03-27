@@ -82,17 +82,6 @@ public class MariaDBConnector extends DatabaseConnector {
 		return false;}
 	}
 
-	@Override
-	public Object get(Class<?> dao, String Column, String condition) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public boolean add(Class<?> dao, Object o) {
-		// TODO Auto-generated method stub
-		return false;
-	}
 
 	@Override
 	public CriteriaSet setCriteria(TableData table,TableHierarchyData hierarchy) {
@@ -194,16 +183,9 @@ public class MariaDBConnector extends DatabaseConnector {
 			throw new ConstructorException();
 		}
 	}
-	@Override
-	public int insert(Object o,TableHierarchyValue hierarchy) {
-		if(hierarchy==null)
-			return -1;
-		//for(TableData td:hierarchy)
-			return this.insert(o,hierarchy.current,null,null);
-	}
 
 	@Override
-	public int insert(Object o, TableValue table,PrimaryKey foreign,Object foreign_val) {
+	public int insert(Object o, TableValue table,PrimaryKey foreign,Object foreign_val,Pair<PrimaryKey,Object> foreignpks) {
 		try{  	/*if(table.pk!=null||table.pk_val!=null||(table.pk_val instanceof Integer&&(Integer)table.pk_val<1))
 		      		throw new AutoIncrementValueException(table.pk.name());*/
 			if(foreign!=null&&foreign_val!=null&&(foreign_val instanceof Integer&&(Integer)foreign_val<1))
@@ -259,6 +241,15 @@ public class MariaDBConnector extends DatabaseConnector {
 				decl+=foreign.name()+" ";
 				val+=quote+foreign_val+quote+" ";
 			}
+			if(foreignpks!=null)
+			      if(foreignpks.l!=null&&foreignpks.r!=null) {
+				    if(current_content) {
+						decl+=" , ";
+						val+=" , ";}
+					String quote=(foreignpks.r instanceof String)?"'":"";
+					decl+=foreignpks.l.name()+" ";
+					val+=quote+foreignpks.r+quote+" ";
+			      }
 			decl+=" ) ";
 			val+=" ) ";
 			sql+=decl+" VALUES "+val;
@@ -278,5 +269,17 @@ public class MariaDBConnector extends DatabaseConnector {
 		{ e.printStackTrace();
 		return -1;}
 	}
+
+      @Override
+      public boolean dropTable(TableData t) {
+	    // TODO Auto-generated method stub
+	    return false;
+      }
+
+      @Override
+      public boolean cleanTable(TableData t) {
+	    // TODO Auto-generated method stub
+	    return false;
+      }
 
 }
