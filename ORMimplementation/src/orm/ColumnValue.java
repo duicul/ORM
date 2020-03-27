@@ -1,12 +1,10 @@
 package orm;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Type;
 
 import annotations.Column;
 import annotations.OneToMany;
 import annotations.OneToOne;
-import annotations.PrimaryKey;
 
 public class ColumnValue extends ColumnData {
 	public final Object value;

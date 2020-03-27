@@ -4,13 +4,12 @@ import java.lang.reflect.Type;
 import java.util.List;
 
 import annotations.PrimaryKey;
-import annotations.Table;
 import exception.CommunicationException;
 import exception.ConstructorException;
 import exception.DbDriverNotFound;
-import orm.ColumnData;
 import orm.TableData;
 import orm.TableHierarchyData;
+import orm.TableHierarchyValue;
 import orm.TableValue;
 
 public abstract class DatabaseConnector {
@@ -46,9 +45,15 @@ public abstract class DatabaseConnector {
 	public abstract Object get(Class<?> dao,String Column,String condition);
 	public abstract boolean add(Class<?> dao,Object o);
 	public abstract List<Object> select(CriteriaSet cs) throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException;
-	public abstract boolean insert(Object o, TableValue table,TableHierarchyData thd);
+	/**
+	 * 
+	 * @param o
+	 * @param thd
+	 * @return Inserted id
+	 */
+	public abstract int insert(Object o,TableHierarchyValue thd);
 
-	public abstract boolean insert(Object o, TableValue table, PrimaryKey foreign,Object foreign_val);
+	public abstract int insert(Object o, TableValue table, PrimaryKey foreign,Object foreign_val);
 	
 	
 }

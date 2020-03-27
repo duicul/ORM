@@ -2,7 +2,6 @@ package connector;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -13,7 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import annotations.PrimaryKey;
-import annotations.Table;
 import exception.AutoIncrementValueException;
 import exception.AutoIncrementWrongTypeException;
 import exception.CommunicationException;
@@ -23,6 +21,7 @@ import orm.ColumnData;
 import orm.ColumnValue;
 import orm.TableData;
 import orm.TableHierarchyData;
+import orm.TableHierarchyValue;
 import orm.TableValue;
 
 public class MariaDBConnector extends DatabaseConnector {
@@ -130,12 +129,12 @@ public class MariaDBConnector extends DatabaseConnector {
 					if(crits)
 						sql+=" AND ";
 					else sql+=" WHERE ";
-					sql+=cs.table.table.name()+"."+cs.table.pk.name()+"="+cs.hierarchy.hierarchy.get(0).table.name()+"."+cs.hierarchy.hierarchy.get(0).pk.name();
+					sql+=cs.table.table.name()+"."+cs.hierarchy.hierarchy.get(0).pk.name()+"="+cs.hierarchy.hierarchy.get(0).table.name()+"."+cs.hierarchy.hierarchy.get(0).pk.name();
 					for(int i=1;i<cs.hierarchy.hierarchy.size();i++) {
 						TableData prev,curr;
 						prev=cs.hierarchy.hierarchy.get(i-1);
 						curr=cs.hierarchy.hierarchy.get(i);
-						sql+=" AND "+prev.table.name()+"."+prev.pk.name()+"="+curr.table.name()+"."+curr.pk.name();}
+						sql+=" AND "+prev.table.name()+"."+curr.pk.name()+"="+curr.table.name()+"."+curr.pk.name();}
 				}
 			}
 			sql+=cs.getOrder();
@@ -150,6 +149,10 @@ public class MariaDBConnector extends DatabaseConnector {
 				ret=cons.newInstance();
 				for(int i=1;i<=no_col;i++) {
 					String col_name=rsmd.getColumnName(i);
+					if(cs.table.pk!=null&&cs.table.pk.autoincrement()&&cs.table.pk.name().contentEquals(col_name)) {
+					      Object obj=rs.getObject(i);
+					      cs.table.pk_field.set(ret, obj);
+					      continue;}
 					for(ColumnData cd:cs.table.lcd) {
 						if(cd.col!=null&&col_name.equals(cd.col.name())) {
 							Object obj=rs.getObject(i);
@@ -161,6 +164,10 @@ public class MariaDBConnector extends DatabaseConnector {
 							break;}
 					}
 					for(TableData td:cs.hierarchy.hierarchy) {
+					      if(td.pk!=null&&td.pk.autoincrement()&&td.pk.name().contentEquals(col_name)) {
+						      Object obj=rs.getObject(i);
+						      td.pk_field.set(ret,obj);
+						      break;}
 						for(ColumnData cd:td.lcd) {
 							if(cd.col!=null&&col_name.equals(cd.col.name())) {
 								Object obj=rs.getObject(i);
@@ -188,16 +195,19 @@ public class MariaDBConnector extends DatabaseConnector {
 		}
 	}
 	@Override
-	public boolean insert(Object o, TableValue table,TableHierarchyData hierarchy) {
+	public int insert(Object o,TableHierarchyValue hierarchy) {
 		if(hierarchy==null)
-			return false;
+			return -1;
 		//for(TableData td:hierarchy)
-			return this.insert(o, table,null,null);
+			return this.insert(o,hierarchy.current,null,null);
 	}
 
 	@Override
-	public boolean insert(Object o, TableValue table,PrimaryKey foreign,Object foreign_val) {
-		try{  
+	public int insert(Object o, TableValue table,PrimaryKey foreign,Object foreign_val) {
+		try{  	/*if(table.pk!=null||table.pk_val!=null||(table.pk_val instanceof Integer&&(Integer)table.pk_val<1))
+		      		throw new AutoIncrementValueException(table.pk.name());*/
+			if(foreign!=null&&foreign_val!=null&&(foreign_val instanceof Integer&&(Integer)foreign_val<1))
+	      			throw new AutoIncrementValueException(foreign.name());
 			Class.forName(this.driver);  
 			Connection con=DriverManager.getConnection(  
 			"jdbc:mysql://127.0.0.1:3306/"+database,username,password);   
@@ -254,11 +264,19 @@ public class MariaDBConnector extends DatabaseConnector {
 			sql+=decl+" VALUES "+val;
 			System.out.println(sql);
 	      stmt.executeUpdate(sql);
-	      con.close();   
-	      return true;
+	      int insert_id=-1;
+	      if(table.pk.autoincrement()) {
+		    sql=" SELECT LAST_INSERT_ID(); ";
+		    stmt=con.createStatement();
+		    ResultSet rs=stmt.executeQuery(sql);
+		    if(rs.next()) 
+			  insert_id=rs.getInt(1);
+	      }
+	      con.close(); 
+	      return insert_id;
 			}catch(Exception e)
 		{ e.printStackTrace();
-		return false;}
+		return -1;}
 	}
 
 }

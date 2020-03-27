@@ -1,15 +1,7 @@
 package connector;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import annotations.Table;
-import exception.CommunicationException;
-import exception.ConstructorException;
-import exception.DbDriverNotFound;
-import exception.NoSuchColumnException;
-import orm.ColumnData;
-import orm.TableData;
+
 
 public class Criteria {
 	private final Table t;
