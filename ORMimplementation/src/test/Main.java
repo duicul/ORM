@@ -3,37 +3,45 @@ package test;
 import java.util.ArrayList;
 import java.util.List;
 
-import connector.Criteria;
+import annotations.Table;
 import connector.CriteriaSet;
 import connector.DatabaseConnector;
 import connector.MariaDBConnector;
 import exception.CommunicationException;
-import exception.ConstructorException;
 import exception.DbDriverNotFound;
+import orm.ORMConverter;
 import orm.ORMLoader;
 
 public class Main {
  public static void main(String args[]) {
-	 DatabaseConnector dbc=new MariaDBConnector(3306,"127.0.0.1","root","", "demo_orm");
-	 //SELECT LAST_INSERT_ID();
-	 ORMLoader ol=new ORMLoader(dbc);
-	 //ol.get(Student.class,"name", "Popa");
-	 CriteriaSet c=ol.setCriteria(StudentLiterature.class);
-	 //c.lt("grade", 8);
-	 //c.like("Name", "Gic%");
-	 //c.orderAsc("grade");
-	 List<Car> lc=new ArrayList<Car>();
-	 lc.add(new Car("a","b","c"));
-	 lc.add(new Car("d","e","f"));
-	 ol.insert(new People(null,"Fane"));
-	 ol.insert(new StudentLiterature(lc,9, "Drama", "Gica",new Nota((float) 7.8)));
-	 try {
+         for(Table t:ORMConverter.getRelatingTables(ORMConverter.extractHierarchicalData(StudentLiterature.class)))
+               System.out.println(t.name());
+         try {
+               DatabaseConnector dbc=new MariaDBConnector(3306,"127.0.0.1","root","", "demo_orm",false);
+               //SELECT LAST_INSERT_ID();
+               ORMLoader ol=new ORMLoader(dbc);
+               //ol.dropTable(StudentLiterature.class);
+               //ol.get(Student.class,"name", "Popa");
+               CriteriaSet c=ol.setCriteria(StudentLiterature.class);
+               //c.lt("grade", 8);
+               //c.like("Model", "Gic%");
+               //c.orderAsc("grade");
+               List<Car> lc=new ArrayList<Car>();
+               lc.add(new Car("a","b","c"));
+               lc.add(new Car("d","e","f"));
+               List<Car> lc1=new ArrayList<Car>();
+               lc1.add(new Car("q","r","t"));
+               //ol.insert(new People(null,"Fane"));
+               ol.insert(new StudentLiterature(lc,9, "Drama", "Gica",new Nota((float) 7.8)));
+               ol.insert(new StudentLiterature(lc1,9, "Mate", "Boss",new Nota((float) 3)));
 		List<Object> ls=c.extract();
+		c.remove();
 		System.out.println(ls);
 		for(Object o:ls) {
 		      StudentLiterature sl=(StudentLiterature) o;
-		      System.out.println();
-			System.out.println(sl.name+" "+sl.grade+" "+sl.spec+" "+sl.pid+" "+sl.sid+" "+sl.slid);
+		      	System.out.println();
+		      	String nota=sl.n!=null?sl.n.nid+" "+sl.n.val:"";
+			System.out.println(sl.name+" "+sl.grade+" "+sl.spec+" "+sl.pid+" "+sl.sid+" "+sl.slid+" "+nota);
 			if(sl.c!=null)
 			for(Car cr:sl.c)
 			      System.out.println(cr.cid+" "+cr.color+" "+cr.model+" "+cr.reg_no);

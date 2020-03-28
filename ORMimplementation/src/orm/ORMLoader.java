@@ -1,16 +1,12 @@
 package orm;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
-import annotations.Column;
-import annotations.OneToMany;
-import annotations.OneToOne;
 import annotations.PrimaryKey;
 import annotations.Table;
 import connector.CriteriaSet;
@@ -30,10 +26,10 @@ public class ORMLoader {
  }
  
  public List<Object> get(Class<?> class_name,String field,String match) throws DbDriverNotFound, CommunicationException{
-	 TableHierarchyData hierarchy;
+	//TableHierarchyData hierarchy;
 	for(Annotation a:class_name.getAnnotations()) {
 		if(a instanceof Table && !dbc.checkTable(((Table) a).name())) {
-			hierarchy=this.structuretablesuper((Table) a, class_name,null);
+		      this.createTableHierarchyTables(class_name);
 		}
 	}
 	return null;	 
@@ -46,9 +42,10 @@ public class ORMLoader {
   * @param class_name class mapped to the table
   * @return hierarchical metadata structure
   */
- private TableHierarchyData  structuretablesuper(Table t,Class<?> class_name,TableData composition) {
-	 Table table_super=null,taux=t;
-	 PrimaryKey primary_super=null,primary_current=null;
+ /*private TableHierarchyData  structuretablesuper(Class<?> class_name,TableData composition) {
+	 Table t=ORMConverter.getTable(class_name);
+       	 Table table_super=null,taux=t;
+	 //PrimaryKey primary_super=null,primary_current=null;
 	 Class<?> current_class=class_name;
 	 TableData tab_sup_data=null,tab_cur_data=null;
 	 List<TableData> hierarchy=new ArrayList<TableData> ();
@@ -56,13 +53,11 @@ public class ORMLoader {
 	 while(!current_class.equals(Object.class)&&taux!=null) {
 		 tab_sup_data=null;
 		 Class<?> super_cls=current_class.getSuperclass();
-		 table_super=this.getTable(super_cls);
+		 table_super=ORMConverter.getTable(super_cls);
 		 if(table_super!=null){
-			 primary_super=this.getPrimaryKey(super_cls);
-			 tab_sup_data=this.convertTable(super_cls,table_super);
+			 tab_sup_data=ORMConverter.convertTable(super_cls);
 		 }
-		 primary_current=this.getPrimaryKey(current_class);
-		 tab_cur_data=this.convertTable(current_class,taux);
+		 tab_cur_data=ORMConverter.convertTable(current_class);
 		 try {
 			if(table_super!=null&&dbc.checkTable(table_super.name()))
 				this.updateTableForeignKey(tab_cur_data,tab_sup_data);
@@ -83,10 +78,7 @@ public class ORMLoader {
 					 ParameterizedType paramtype=(ParameterizedType) list_oneto;
 					 if(((ParameterizedType) list_oneto).getActualTypeArguments().length>0)
 						 foreign_oneto=paramtype.getActualTypeArguments()[0];
-				 }
-				 
-				 //TableData fore_table=this.convertTable((Class<?>) foreign_oneto, this.getTable((Class<?>) foreign_oneto));
-				 
+				 }	 
 			 }
 			 if(cd.oto!=null) {
 			       foreign_oneto=cd.f.getGenericType();
@@ -94,7 +86,7 @@ public class ORMLoader {
 			 if(foreign_oneto!=null) {
 			       if(foreign_table==null)
 					 foreign_table=new ArrayList<TableHierarchyData>();
-			       foreign_table.add(this.structuretablesuper(this.getTable((Class<?>) foreign_oneto), (Class<?>) foreign_oneto,tab_cur_data));
+			       foreign_table.add(this.structuretablesuper( (Class<?>) foreign_oneto,tab_cur_data));
 				 System.out.println((Class<?>) foreign_oneto);
 				 continue; 
 			 }
@@ -109,8 +101,8 @@ public class ORMLoader {
 		 else break;
 		 
 	 }
-	return new TableHierarchyData(hierarchy, this.convertTable(class_name,t),foreign_table);
- }
+	return new TableHierarchyData(hierarchy, ORMConverter.convertTable(class_name),foreign_table);
+ }*/
 
  
  private void createTable(TableData current_table,TableData super_table) {
@@ -124,221 +116,37 @@ public class ORMLoader {
 	 if(super_table!=null&&super_table.pk!=null&&super_table.pk.autoincrement()&&!(super_table.pk_field.getType().equals(int.class)||super_table.pk_field.getType().equals(Integer.class)))
 			throw new AutoIncrementWrongTypeException(super_table.table.name()+"."+super_table.pk.name());
 	 dbc.createTable(current_table,super_table);
-	 System.out.println("Create table "+table_current_name+" primary key: "+key_current_name+" with foreign table: "+foreign_table_name+" foreign key: "+foreign_key_name);
+	 //System.out.println("Create table "+table_current_name+" primary key: "+key_current_name+" with foreign table: "+foreign_table_name+" foreign key: "+foreign_key_name);
  }
  
  private void updateTableForeignKey(TableData current,TableData foreign) {
 	 dbc.updateTableForeignKey(current,foreign);
  }
- /**
-  *  Extract the metadata for a given table
-  * @param table for which the metadata is extracted
-  * @param t class mapped to the table
-  * @return metadata structure TableData
-  */
- public TableData convertTable(Class<?> table,Table t){
-	 List<ColumnData> lcd=new ArrayList<ColumnData>();
-	 PrimaryKey pk=null;
-	 Field pk_field=null;
-	 for(Field f:table.getDeclaredFields()) {
-		 Type type=null;
-		 Column c=null;
-		 OneToMany otm=null;
-		 OneToOne oto=null;
-		 type=f.getGenericType();
-		 for(Annotation a:f.getAnnotations()) {
-			 if(a instanceof Column) {
-				 c=(Column) a;
-				 continue;}
-		 	 if(a instanceof OneToMany) {
-		 		 otm=(OneToMany) a;
-		 		 continue;}
-		 	 if(a instanceof OneToOne) {
-		 		 oto=(OneToOne) a;
-		 		 continue;}
-		 	if(a instanceof PrimaryKey) {
-		 		 pk_field=f;
-		 		 pk=(PrimaryKey) a;
-		 		 continue;}
-		 }
-		 lcd.add(new ColumnData(c, otm, oto,f));
-	 }	 
-	 return new TableData(lcd,t,pk, pk_field, table);
- }
-
- /**
-  * Used to extract the foreign tables' TableData structure for a given primary table
-  * @param primary main table's TableData structure
-  * @param foreign table metadata both compositional and hierarchical
-  * @param o current main table value
-  * @return List of the corresponding table's metadata + values
-  */
- private List<TableHierarchyValue> extractOneToValue(TableData primary,List<TableHierarchyData> foreign,Object o) {
-	 List<ColumnData> onetomany=new ArrayList<ColumnData>(),onetoone=new ArrayList<ColumnData>();
-	 List<TableData> rettabd=new ArrayList<TableData>();
-	 List<TableHierarchyValue> ot_hie_val=new LinkedList<TableHierarchyValue>();
-	 for(ColumnData cd:primary.lcd) {
-		if(cd.otm!=null)
-			onetomany.add(cd);
-		if(cd.oto!=null)
-			onetoone.add(cd);
-	 }
-	 if(foreign==null)
-	       return null;
-	 for(TableHierarchyData thd:foreign) {
-		 TableData td=thd.current;
-		 for(ColumnData oto:onetoone)
-			 if(oto.f.getGenericType().equals(td.class_name)) {
-			       Object obj=null;
-			       try {
-				    obj=oto.f.get(o);
-			      } catch (IllegalArgumentException | IllegalAccessException e) {
-				    e.printStackTrace();}
-				    if(obj!=null) {
-					  TableHierarchyValue thv=this.convertTableHierarchyValue(thd, obj);
-					  if(thv!=null)
-						ot_hie_val.add(thv);
-				    }
-			      }
-		 for(ColumnData otm:onetomany) {
-			 Type list_oneto=otm.f.getGenericType();
-			 Type foreign_oneto=null;
-			 if(list_oneto instanceof ParameterizedType) {
-				 ParameterizedType paramtype=(ParameterizedType) list_oneto;
-				 if(((ParameterizedType) list_oneto).getActualTypeArguments().length>0)
-					 foreign_oneto=paramtype.getActualTypeArguments()[0];}
-			 
-			 if(foreign_oneto!=null&&foreign_oneto.equals(td.class_name)) {
-				List<Object> val_list_fore=null;
-				try {
-				val_list_fore=(List<Object>) otm.f.get(o);
-				} catch (IllegalArgumentException | IllegalAccessException e) {
-				      e.printStackTrace();
-				}
-				if(val_list_fore!=null)
-				      for(Object fore_val:val_list_fore) {
-					    TableHierarchyValue thv=this.convertTableHierarchyValue(thd, fore_val);
-					    if(thv!=null)
-						  ot_hie_val.add(thv);
-				      }
-			 }
-		 }
-	 }
-	 return ot_hie_val.size()==0?null:ot_hie_val; 
- }
- 
- /**
-  * Used to add the values to a tree metadata structure containing both hierarchical and compositional structure of a class
-  * @param td Metadata tree structure containing the objects structure
-  * @param o Value to be added
-  * @return TableHierarchyValue containing the value added mapped to the metadata structure
-  */ 
- public TableHierarchyValue convertTableHierarchyValue(TableHierarchyData td,Object o) {
-       TableHierarchyValue thv=this.convertTableHierarchyValueClass(td, o);
-       if(thv!=null) {
-	     thv.addForeignHierarchy(this.extractOneToValue(td.current,td.foreign_hie, o));
-	     for(TableData tdi:td.hierarchy)
-		   thv.addForeignHierarchy(this.extractOneToValue(tdi,td.foreign_hie, o));}
-       return thv;
- }
- 
- 
- /**
-  * Used to add the values to a tree metadata structure for the <b>hierarchical</b> structure of a class
-  * @param td Metadata tree structure containing the objects structure
-  * @param o Value to be added
-  * @return TableHierarchyValue containing the value added mapped to the metadata structure
-  */
- private TableHierarchyValue convertTableHierarchyValueClass(TableHierarchyData td,Object o){
-	 List<TableHierarchyValue> lthv_foreign=null;
-	 List<TableValue> ltv_fore=null;
-	 TableValue curr_value=this.convertTableValue(td.current,o);
-	 
-	 //Convert class hierarchy tables
-	 for(TableData tdi:td.hierarchy) {		 
-		 if(ltv_fore==null)
-			 ltv_fore=new ArrayList<TableValue>();
-		 TableValue tv_curr=this.convertTableValue(tdi,o);
-		 if(tv_curr!=null)
-			 ltv_fore.add(tv_curr);
-	 }
-	 return new TableHierarchyValue(ltv_fore,curr_value);
- }
- 
- /**
-  * Used to add the values into a TableData structure
-  * @param td TableData structure containing table metadata mapped to a class
-  * @param o Value to be added
-  * @return new structure containing the metadata and the value for each field/column
-  */
- public TableValue convertTableValue(TableData td,Object o){
-	 /*if(!td.table.name().equals(this.getTable(o.getClass()).name()))
-		 return null;*/
-	 List<ColumnValue> lcv=new ArrayList<ColumnValue>();
-	 Object pk_val=null;
-	try {
-		pk_val = td.pk_field.get(o);
-	} catch (IllegalArgumentException | IllegalAccessException e1) {
-	      e1.printStackTrace();
-	      return null;
-	}
-	 for(ColumnData cd:td.lcd) {
-			Object col_val=null;
-			try {
-				col_val=cd.f.get(o);
-			} catch (IllegalArgumentException | IllegalAccessException e) {
-				e.printStackTrace();}
-			lcv.add(new ColumnValue(cd,col_val));	
-		}
-	return new TableValue(lcv,td,pk_val,o);
-	 
- }
- 
- 
+  
  /**
   * 
   *  Creates a CriteriaSet used to apply a select on the specified table
   * @param table Classs which maps to a table to which the select is applied to
   * @return CriteriaSet
+ * @throws CommunicationException 
+ * @throws DbDriverNotFound 
   */
- public CriteriaSet setCriteria(Class<?> table) {
-	 TableData td=this.convertTable(table, this.getTable(table));
-	 TableHierarchyData hierarchy=this.structuretablesuper(td.table, table,null);
+ public CriteriaSet setCriteria(Class<?> table) throws DbDriverNotFound, CommunicationException {
+	 TableData td=ORMConverter.convertTable(table);
+	 TableHierarchyData hierarchy=this.createTableHierarchyTables(table);
 	 return dbc.setCriteria(td,hierarchy);
  }
  
- /**
-  *  Used to extract the Table annotation from a Class
-  * @param tab Classs which maps to a table 
-  * @return Table annotation
-  */
  
- public Table getTable(Class<?> tab) {
-		 for(Annotation a:tab.getAnnotations())
-			 if(a instanceof Table) 
-				 return (Table) a;
-	return null;
- }
- 
- /**
-  *  Used to extract the PrimaryKey annotation from a Class
-  * @param tab Classs which maps to a table with a primary key
-  * @return PrimaryKey annotation
-  */
- public PrimaryKey getPrimaryKey(Class<?> tab) {
-	 for(Field f:tab.getFields())
-	 for(Annotation a:f.getAnnotations())
-		 if(a instanceof PrimaryKey) 
-			 return (PrimaryKey) a;
-	 return null;
-}
  
  /**
   * ethod used to insert an object into the database with a provided foreign key for composition
   * @param o Object to insert
   * @return inserted ID
+ * @throws CommunicationException 
+ * @throws DbDriverNotFound 
   */
- public int insert(Object o) {
+ public int insert(Object o) throws DbDriverNotFound, CommunicationException {
        return this.insert(o,null,null);
  }
  
@@ -347,65 +155,73 @@ public class ORMLoader {
   * @param o Object to insert
   * @param foreign key for composition relationship mapping
   * @return inserted ID
+ * @throws CommunicationException 
+ * @throws DbDriverNotFound 
   */
- private int insert(Object o,Pair<PrimaryKey,Object> foreign,TableHierarchyValue hierarchy) {
-       	
-	 TableData td=this.convertTable(o.getClass(),this.getTable(o.getClass()));
-	 TableHierarchyData thd=this.structuretablesuper(td.table, o.getClass(),null);
+ private int insert(Object o,Pair<PrimaryKey,Object> foreign,TableHierarchyValue hierarchy) throws DbDriverNotFound, CommunicationException {
+	 TableHierarchyData thd=this.createTableHierarchyTables(o.getClass());
 	 if( hierarchy == null)
-	       hierarchy=this.convertTableHierarchyValue(thd,o);
+	       hierarchy=ORMConverter.convertTableHierarchyValue(thd,o);
 	 PrimaryKey last_pk=null;
 	 Object last_val=null;
 	 List<Pair<Class<?>,Object>> insert_ids_hie=new LinkedList<Pair<Class<?>,Object>>();
 	 if(hierarchy.hierarchy!=null) {
 	       for(int i=hierarchy.hierarchy.size()-1;i>=0;i--) {
 		     TableValue tv=hierarchy.hierarchy.get(i);     
-		     last_val=this.dbc.insert(o,tv,last_pk,last_val,null);
+		     last_val=this.dbc.insert(o,tv,new Pair<PrimaryKey,Object>(last_pk,last_val),null);
 		     last_pk=tv.pk;
 		     insert_ids_hie.add(new Pair<Class<?>,Object>(tv.class_name,last_val));
 	       }
 	 }
-	 int insert_val=this.dbc.insert(o,hierarchy.current,last_pk,last_val,foreign);
+	 int insert_val=this.dbc.insert(o,hierarchy.current,new Pair<PrimaryKey,Object>(last_pk,last_val),foreign);
 	 //System.out.println(insert_val);
-	 {
-	       for(List<TableHierarchyValue> thvi:hierarchy.foreign_hie) {
-		       for(TableHierarchyValue thvj:thvi) {
-			     PrimaryKey corr_fore_pk=null;
-			     Object foreign_id_val=null;
-			     for(TableData tdi:thd.hierarchy)
-				  for(ColumnData cd:tdi.lcd) {
-					Type foreign_oneto=null;
-					if(cd.oto!=null&&cd.f!=null)
-					      foreign_oneto=cd.f.getGenericType();
-					if(cd.otm!=null) {
-						 Type list_oneto=cd.f.getGenericType();
-						 if(list_oneto instanceof ParameterizedType) {
-							 ParameterizedType paramtype=(ParameterizedType) list_oneto;
-							 if(((ParameterizedType) list_oneto).getActualTypeArguments().length>0)
-								 foreign_oneto=paramtype.getActualTypeArguments()[0];
-						 }
-					}
-					if(foreign_oneto!=null&&foreign_oneto.equals(thvj.current.class_name)) {
-					      	for(Pair<Class<?>,Object> p:insert_ids_hie)
-					      	      if(tdi.class_name.equals(p.l))
-					      		    foreign_id_val=p.r;
-					      	corr_fore_pk=tdi.pk;
-					      	
-						break;}
-
-				   }
-			     if(corr_fore_pk==null) {
-				   foreign_id_val=insert_val;
-				   corr_fore_pk=hierarchy.current.pk;}
-			     int fore_id=this.insert(thvj.current.value, new Pair<PrimaryKey,Object>(corr_fore_pk,foreign_id_val),thvj);
-			     System.out.println(thvj.current.table.name()+" insert id "+fore_id);
-		       }
-		       		
-	       }
-	 }
-	 
+	 for(List<TableHierarchyValue> thvi:hierarchy.foreign_hie) 
+	       for(TableHierarchyValue thvj:thvi) {
+		     Pair<PrimaryKey,Object> fore_val=ORMConverter.getForeignKeyForColumn(insert_ids_hie, thd.hierarchy, thvj.current.class_name);
+		     if(fore_val==null) 
+			   fore_val=new Pair<PrimaryKey,Object>(hierarchy.current.pk,insert_val);
+		     	int fore_id=this.insert(thvj.current.value,fore_val,thvj);
+		     	//System.out.println(thvj.current.table.name()+" insert id "+fore_id);
+	       	}	 
 	 return insert_val;
  }
 
+ 
+ 
+ private TableHierarchyData createTableHierarchyTables(Class<?> table_class) throws DbDriverNotFound, CommunicationException {
+       TableHierarchyData thd = ORMConverter.extractHierarchicalData(table_class);
+       this.parseAndCreateTables(thd,null);
+       return thd;
+       
+ }
+ 
+ private void parseAndCreateTables(TableHierarchyData thd,TableData composition) throws DbDriverNotFound, CommunicationException {
+       TableData prev=null;
+       for(int i=thd.hierarchy.size()-1;i>=0;i--) {
+	     TableData curr=thd.hierarchy.get(i);
+	     if(!dbc.checkTable(curr.table.name()))
+		   this.createTable(curr, prev);
+	     if(prev!=null&&dbc.checkTable(prev.table.name()))
+			this.updateTableForeignKey(curr,prev);
+	     prev=thd.hierarchy.get(i);
+       }
+       if(!dbc.checkTable(thd.current.table.name()))
+	     if(prev==null&&composition!=null)
+		   this.createTable(thd.current, composition);
+	     else 
+		   this.createTable(thd.current, prev);
+       if(prev!=null&&dbc.checkTable(prev.table.name()))
+		this.updateTableForeignKey(thd.current,prev);
+       if(thd.foreign_hie!=null)
+	     for(TableHierarchyData thdi:thd.foreign_hie) {
+		   TableData tabmain=ORMConverter.getForeignTableMainFromFullHierarchy(thd.current,thd.hierarchy, thdi.current);
+		   this.parseAndCreateTables(thdi,tabmain);}
+ }
+ 
+ public void dropTable(Class<?> table) {
+       TableHierarchyData thd=ORMConverter.extractHierarchicalData(table);
+       List<Table> list_drops=ORMConverter.getRelatingTables(thd);
+       dbc.dropTable(list_drops);
+ }
  
 }

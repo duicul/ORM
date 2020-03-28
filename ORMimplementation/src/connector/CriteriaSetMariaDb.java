@@ -1,11 +1,6 @@
 package connector;
 
-import java.util.List;
-
 import annotations.Table;
-import exception.CommunicationException;
-import exception.ConstructorException;
-import exception.DbDriverNotFound;
 import exception.NoSuchColumnException;
 import orm.TableData;
 import orm.TableHierarchyData;
@@ -67,9 +62,5 @@ public class CriteriaSetMariaDb extends CriteriaSet {
 			this.order= column+" DESC ";
 			this.order_table=t;}
 		else throw new NoSuchColumnException(column);
-	}
-
-	public List<Object> extract() throws ConstructorException, SecurityException, DbDriverNotFound, CommunicationException {
-		return dbc.select(this);
 	}
 }

@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import annotations.PrimaryKey;
+import annotations.Table;
 import exception.AutoIncrementValueException;
 import exception.AutoIncrementWrongTypeException;
 import exception.CommunicationException;
@@ -21,13 +22,12 @@ import orm.ColumnData;
 import orm.ColumnValue;
 import orm.TableData;
 import orm.TableHierarchyData;
-import orm.TableHierarchyValue;
 import orm.TableValue;
 
 public class MariaDBConnector extends DatabaseConnector {
 	public final String driver;
-	public MariaDBConnector(long port, String hostname, String username, String password, String database) {
-		super(port, hostname, username, password, database);
+	public MariaDBConnector(long port, String hostname, String username, String password, String database,boolean show_querries) {
+		super(port, hostname, username, password, database, show_querries);
 		this.driver="org.mariadb.jdbc.Driver";
 	}
 
@@ -73,7 +73,8 @@ public class MariaDBConnector extends DatabaseConnector {
 			}
 				
 			sql+=");";
-			System.out.println(sql);
+			if(this.show_querries)
+			      System.out.println(sql);
 	      stmt.executeUpdate(sql);
 	      con.close();   
 	      return true;
@@ -93,44 +94,61 @@ public class MariaDBConnector extends DatabaseConnector {
 		// TODO Auto-generated method stub
 		return false;
 	}
-
+	
+	public List<Object> select(){
+	    return null;}
+	
 	@Override
-	public List<Object> select(CriteriaSet cs) throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException {
+	public List<Object> projection(List<TableData> hierarchy,List<Criteria> criters,TableData current_table,String order,boolean remove) throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException {
 		try{
 			Class.forName(this.driver);  
 			Connection con=DriverManager.getConnection(  
 			"jdbc:mysql://127.0.0.1:3306/"+database,username,password);   
-			Statement stmt=con.createStatement(); 
-			String sql = "SELECT * FROM " +cs.table.table.name();
-			if(cs.hierarchy!=null)
-				for(TableData td:cs.hierarchy.hierarchy)
-					sql+=" , "+td.table.name();
+			Statement stmt=con.createStatement();
+			String select_querry="SELECT * ";
+			String delete_querry=" DELETE ";
+			String sql = " FROM ";
+			if(hierarchy!=null) {
+			      	boolean first=true;
+				for(TableData td:hierarchy)
+				      if(td.table!=null) {
+					    if(!first) {
+						  sql+=" , ";
+						  delete_querry+=" , ";}
+					sql+=td.table.name();
+					delete_querry+=td.table.name();
+					first=false;}
+			}
 			boolean crits=false;
 			
-			if(cs.crits.size()>0) {
+			if(criters.size()>0) {
 				crits=true;
 				sql+=" WHERE ";
-				sql+=" "+cs.crits.get(0).getCriteria()+"  ";
-				for(int i=1;i<cs.crits.size();i++)
-					sql+=" AND "+cs.crits.get(i).getCriteria()+"  ";}
-			if(cs.hierarchy!=null) {
-				if(cs.hierarchy.hierarchy.size()>0) {
+				sql+=" "+criters.get(0).getCriteria()+"  ";
+				for(int i=1;i<criters.size();i++)
+					sql+=" AND "+criters.get(i).getCriteria()+"  ";}
+			if(hierarchy!=null) {
+				if(hierarchy.size()>1) {
 					if(crits)
 						sql+=" AND ";
 					else sql+=" WHERE ";
-					sql+=cs.table.table.name()+"."+cs.hierarchy.hierarchy.get(0).pk.name()+"="+cs.hierarchy.hierarchy.get(0).table.name()+"."+cs.hierarchy.hierarchy.get(0).pk.name();
-					for(int i=1;i<cs.hierarchy.hierarchy.size();i++) {
+					TableData tdmain=hierarchy.get(0),tdmain1=hierarchy.get(1);
+					if(tdmain!=null)
+					      sql+=tdmain.table.name()+"."+tdmain1.pk.name()+"="+tdmain1.table.name()+"."+tdmain1.pk.name();
+					for(int i=2;i<hierarchy.size();i++) {
 						TableData prev,curr;
-						prev=cs.hierarchy.hierarchy.get(i-1);
-						curr=cs.hierarchy.hierarchy.get(i);
-						sql+=" AND "+prev.table.name()+"."+curr.pk.name()+"="+curr.table.name()+"."+curr.pk.name();}
+						prev=hierarchy.get(i-1);
+						curr=hierarchy.get(i);
+						if(prev!=null&&curr!=null)
+						      sql+=" AND "+prev.table.name()+"."+curr.pk.name()+"="+curr.table.name()+"."+curr.pk.name();}
 				}
 			}
-			sql+=cs.getOrder();
-			Constructor<?> cons=cs.table.class_name.getConstructor();
+			sql+=order==null?"":order;
+			Constructor<?> cons=current_table.class_name.getConstructor();
 			Object ret;
-			System.out.println(sql);
-			ResultSet rs=stmt.executeQuery(sql);
+			if(show_querries)
+			      System.out.println(select_querry+sql);
+			ResultSet rs=stmt.executeQuery(select_querry+sql);
 			ResultSetMetaData rsmd = rs.getMetaData();
 			int no_col=rsmd.getColumnCount();
 			List<Object> retlo=new ArrayList<Object>();
@@ -138,21 +156,21 @@ public class MariaDBConnector extends DatabaseConnector {
 				ret=cons.newInstance();
 				for(int i=1;i<=no_col;i++) {
 					String col_name=rsmd.getColumnName(i);
-					if(cs.table.pk!=null&&cs.table.pk.autoincrement()&&cs.table.pk.name().contentEquals(col_name)) {
+					if(current_table.pk!=null&&current_table.pk.autoincrement()&&current_table.pk.name().contentEquals(col_name)) {
 					      Object obj=rs.getObject(i);
-					      cs.table.pk_field.set(ret, obj);
+					      current_table.pk_field.set(ret, obj);
 					      continue;}
-					for(ColumnData cd:cs.table.lcd) {
+					for(ColumnData cd:current_table.lcd) {
 						if(cd.col!=null&&col_name.equals(cd.col.name())) {
 							Object obj=rs.getObject(i);
 							cd.f.set(ret, obj);
 							break;}
-						if(cs.table.pk!=null&&col_name.equals(cs.table.pk.name())) {
+						if(current_table.pk!=null&&col_name.equals(current_table.pk.name())) {
 							Object obj=rs.getObject(i);
-							cs.table.pk_field.set(ret, obj);
+							current_table.pk_field.set(ret, obj);
 							break;}
 					}
-					for(TableData td:cs.hierarchy.hierarchy) {
+					for(TableData td:hierarchy) {
 					      if(td.pk!=null&&td.pk.autoincrement()&&td.pk.name().contentEquals(col_name)) {
 						      Object obj=rs.getObject(i);
 						      td.pk_field.set(ret,obj);
@@ -167,11 +185,17 @@ public class MariaDBConnector extends DatabaseConnector {
 				}
 				retlo.add(ret);
 	      }
+	      if(remove) {
+		    if(show_querries)
+			      System.out.println(delete_querry+sql);
+		    stmt.executeUpdate(delete_querry+sql);
+	      }
+			
 	      con.close();   
 	      return retlo;
 		}catch(NoSuchMethodException e) {
 			e.printStackTrace();
-			throw new ConstructorException();
+			throw new ConstructorException(current_table.class_name.toString());
 		}catch (SQLException e) {
 			e.printStackTrace();
 			throw new CommunicationException();
@@ -180,16 +204,14 @@ public class MariaDBConnector extends DatabaseConnector {
 			throw new DbDriverNotFound();
 		} catch (InstantiationException |IllegalAccessException|IllegalArgumentException |InvocationTargetException e) {
 			e.printStackTrace();
-			throw new ConstructorException();
+			throw new ConstructorException(current_table.class_name.toString());
 		}
 	}
 
 	@Override
-	public int insert(Object o, TableValue table,PrimaryKey foreign,Object foreign_val,Pair<PrimaryKey,Object> foreignpks) {
-		try{  	/*if(table.pk!=null||table.pk_val!=null||(table.pk_val instanceof Integer&&(Integer)table.pk_val<1))
-		      		throw new AutoIncrementValueException(table.pk.name());*/
-			if(foreign!=null&&foreign_val!=null&&(foreign_val instanceof Integer&&(Integer)foreign_val<1))
-	      			throw new AutoIncrementValueException(foreign.name());
+	public int insert(Object o, TableValue table, Pair<PrimaryKey,Object> foreign_hie,Pair<PrimaryKey,Object> foreign_comp) {
+		try{  	if(foreign_hie.l!=null&&foreign_hie.r!=null&&(foreign_hie.r instanceof Integer&&(Integer)foreign_hie.r<1))
+	      			throw new AutoIncrementValueException(foreign_hie.l.name());
 			Class.forName(this.driver);  
 			Connection con=DriverManager.getConnection(  
 			"jdbc:mysql://127.0.0.1:3306/"+database,username,password);   
@@ -233,27 +255,28 @@ public class MariaDBConnector extends DatabaseConnector {
 					decl+=cv.col.name()+" ";
 					val+=quote+cv.value+quote+" ";}
 			}
-			if(foreign!=null&&foreign_val!=null) {
+			if(foreign_hie.l!=null&&foreign_hie.r!=null) {
 				if(current_content) {
 					decl+=" , ";
 					val+=" , ";}
-				String quote=(foreign_val instanceof String)?"'":"";
-				decl+=foreign.name()+" ";
-				val+=quote+foreign_val+quote+" ";
+				String quote=(foreign_hie.r instanceof String)?"'":"";
+				decl+=foreign_hie.l.name()+" ";
+				val+=quote+foreign_hie.r+quote+" ";
 			}
-			if(foreignpks!=null)
-			      if(foreignpks.l!=null&&foreignpks.r!=null) {
+			if(foreign_comp!=null)
+			      if(foreign_comp.l!=null&&foreign_comp.r!=null) {
 				    if(current_content) {
 						decl+=" , ";
 						val+=" , ";}
-					String quote=(foreignpks.r instanceof String)?"'":"";
-					decl+=foreignpks.l.name()+" ";
-					val+=quote+foreignpks.r+quote+" ";
+					String quote=(foreign_comp.r instanceof String)?"'":"";
+					decl+=foreign_comp.l.name()+" ";
+					val+=quote+foreign_comp.r+quote+" ";
 			      }
 			decl+=" ) ";
 			val+=" ) ";
 			sql+=decl+" VALUES "+val;
-			System.out.println(sql);
+			if(show_querries)
+			      System.out.println(sql);
 	      stmt.executeUpdate(sql);
 	      int insert_id=-1;
 	      if(table.pk.autoincrement()) {
@@ -271,13 +294,33 @@ public class MariaDBConnector extends DatabaseConnector {
 	}
 
       @Override
-      public boolean dropTable(TableData t) {
-	    // TODO Auto-generated method stub
+      public boolean dropTable(List<Table> t) {
+	    
+	    try {Class.forName(this.driver);  
+		Connection con;
+		  con = DriverManager.getConnection(  
+		"jdbc:mysql://127.0.0.1:3306/"+database,username,password);
+		  Statement stmt=con.createStatement();
+		 String sql="";
+		 for(Table ti:t) {
+		       sql=" DROP TABLE IF EXISTS `"+ti.name()+" ; ";
+		       if(show_querries)
+			     System.out.println(sql);
+		       stmt.executeUpdate(sql);
+		       }
+		return true;
+	    } catch (SQLException | ClassNotFoundException e) {
+		  // TODO Auto-generated catch block
+		e.printStackTrace();
+	    }   
+		 
+		
+		
 	    return false;
       }
 
       @Override
-      public boolean cleanTable(TableData t) {
+      public boolean cleanTable(List<Table> t) {
 	    // TODO Auto-generated method stub
 	    return false;
       }

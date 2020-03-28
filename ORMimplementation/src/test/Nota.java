@@ -10,6 +10,11 @@ public class Nota {
       public float val;
       @PrimaryKey(name="nid")
       public int nid;
+      
+      public Nota() {
+	    
+      }
+      
       public Nota(float val) {
 	    this.val=val;
       }

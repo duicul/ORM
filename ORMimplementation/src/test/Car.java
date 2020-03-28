@@ -14,7 +14,8 @@ public class Car {
 	public String reg_no;
 	@PrimaryKey(name="cid")
 	public int cid;
-	protected Car() {
+	
+	public Car() {
 		
 	}
 	

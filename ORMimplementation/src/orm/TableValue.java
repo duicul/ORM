@@ -25,8 +25,7 @@ public class TableValue extends TableInfo {
 		this.value=value;
 	}
 
-	@Override
-	public boolean addForeignComposition(TableInfo tab) {
+	public boolean addForeignComposition(TableValue tab) {
 		if(tab instanceof TableValue) {
 			TableValue tv=(TableValue) tab;
 			if(foreign_val_key==null)
