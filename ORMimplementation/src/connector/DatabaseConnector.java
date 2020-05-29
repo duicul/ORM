@@ -44,17 +44,8 @@ public abstract class DatabaseConnector {
 	public abstract boolean createTable(TableData current,TableData foreign);
 	public abstract boolean updateTableForeignKey(TableData current,TableData foreign);
 	public abstract List<Object> projection(List<TableData> hierarchy,List<Criteria> criters,TableData current_table,String order,boolean remove) throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException;
-	/**
-	 * 
-	 * @param o
-	 * @param table
-	 * @param foreign
-	 * @param foreign_val
-	 * @param foreignpks
-	 * @return Insert id
-	 */
+	public abstract void delete(List<TableData> hierarchy,List<Criteria> criters,TableData current_table) throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException;
 	public abstract int insert(Object o, TableValue table, Pair<PrimaryKey,Object> foreign_hie,Pair<PrimaryKey,Object> foreign_comp);
-	
 	public abstract boolean dropTable(List<Table> t);
 	public abstract boolean cleanTable(List<Table> t);
 }

@@ -10,10 +10,12 @@ import annotations.Table;
 import exception.CommunicationException;
 import exception.ConstructorException;
 import exception.DbDriverNotFound;
+import exception.DeleteComposition;
 import orm.ColumnData;
 import orm.ORMConverter;
 import orm.TableData;
 import orm.TableHierarchyData;
+import orm.TableValue;
 
 public abstract class CriteriaSet {
 	protected List<Criteria> crits;
@@ -63,21 +65,29 @@ public abstract class CriteriaSet {
 	public abstract void orderAsc(String column);
 	public abstract void orderDesc(String column);
 	
-	public void remove() throws ConstructorException, SecurityException, DbDriverNotFound, CommunicationException {
+	public void remove() throws ConstructorException, SecurityException, DbDriverNotFound, CommunicationException, DeleteComposition {
+	      //List<TableData> hierar=ORMConverter.extractFullTableHierarchy(this.table.class_name);
+	      //List<Table> hierar_table = hierar.stream().map(td->td.table).collect(Collectors.toList());
+	      //List<Criteria> curr_crit=this.crits;
+	      //this.dbc.delete(hierar, this.crits, this.table);
 	      this.parse_composition(this.table,null,null,true);
 	}
 	
-	public List<Object> extract() throws ConstructorException, SecurityException, DbDriverNotFound, CommunicationException{
+	public List<Object> extract() throws ConstructorException, SecurityException, DbDriverNotFound, CommunicationException, DeleteComposition{
 	      return this.parse_composition(this.table,null,null,false);}
 	
-	public List<Object> parse_composition(TableData curr_table,PrimaryKey composition,Object val_comp,boolean remove) throws ConstructorException, SecurityException, DbDriverNotFound, CommunicationException{
+	public List<Object> parse_composition(TableData curr_table,PrimaryKey composition,Object val_comp,boolean remove) throws ConstructorException, SecurityException, DbDriverNotFound, CommunicationException, DeleteComposition{
 	      List<TableData> hierar=ORMConverter.extractFullTableHierarchy(curr_table.class_name);
 	      List<Table> hierar_table = hierar.stream().map(td->td.table).collect(Collectors.toList());
 	      List<Criteria> curr_crit=this.filterCriteriasForTableHierarchy(hierar_table);
 	      String curr_order=this.filterOrderForTableHierarchy(hierar_table);
 	      if(composition!=null&&val_comp!=null)
 		    curr_crit.add(new Criteria(curr_table.table,"."+composition.name()+" = "+val_comp));
-	      List<Object> ret=dbc.projection(hierar,curr_crit,curr_table,curr_order,remove); 
+	      List<Object> ret;
+	      ret=dbc.projection(hierar,curr_crit,curr_table,curr_order,false);
+	      List<Pair<Object,TableData>> remove_list=new ArrayList<Pair<Object,TableData>>();
+	      List<Object> remove_list_obj=new ArrayList<Object>();
+	      if(ret!=null)
 	      for(Object ret_obj:ret){
 		    for(TableData tdi:hierar)
 		    for(ColumnData cd:tdi.lcd) {
@@ -96,9 +106,18 @@ public abstract class CriteriaSet {
 				    }
 				      obj_val=this.parse_composition(fore_table,main_table_fore.pk,curr_table_pk_val,remove);
 				      //ORMConverter.getForeignTableFromHierarchy(curr_table, hierar,fore_table);
-				      }
-				if(obj_val==null)
-				      continue;
+				      
+				if(obj_val==null) {
+				      List<TableData> hierar1=ORMConverter.extractFullTableHierarchy(fore_table.class_name);
+				      List<Table> hierar_table1 = hierar1.stream().map(td->td.table).collect(Collectors.toList());
+				      List<Criteria> curr_crit1=this.filterCriteriasForTableHierarchy(hierar_table1);
+				      if(curr_crit1.size()!=0)
+					    if(!remove_list_obj.contains(ret_obj)) {
+						  remove_list_obj.add(ret_obj);
+						  remove_list.add(new Pair<Object,TableData>(ret_obj,curr_table));
+					    }
+				      continue;}
+			  	}
 				if(cd.oto!=null) {
 				      if(obj_val.size()>0)
 					  try {
@@ -119,6 +138,32 @@ public abstract class CriteriaSet {
 			  }	  
 		    }
 	      }
+	      for(Object o:remove_list_obj)
+		    ret.remove(o);
+	      if(remove) {
+		    for(Pair<Object,TableData> tdi:remove_list) {
+			  TableValue tvi=ORMConverter.convertTableValue(tdi.r, tdi.l);
+			  List<TableData> hierar1=ORMConverter.extractFullTableHierarchy(tdi.r.class_name);
+			  List<Table> hierar_table1 = hierar1.stream().map(td->td.table).collect(Collectors.toList());
+			  List<Criteria> curr_crit1=this.filterCriteriasForTableHierarchy(hierar_table1);
+			  
+			  curr_crit1.add(new Criteria(tdi.r.table,"."+tvi.pk.name()+" = "+tvi.pk_val));
+			  dbc.projection(hierar1,curr_crit1,tdi.r,null,true);}
+			   for(Criteria c:this.crits) {
+				 boolean found=false;
+				 for(TableData td:hierar)
+				       if(c.getCriteriaTable().equals(td.table)) {
+					     found=true;
+					     break;}
+				// if(!found)
+				//       throw new DeleteComposition(c.getCriteria());
+			   }
+			   //ret=dbc.projection(hierar,curr_crit,curr_table,curr_order,false);
+			   if(this.filterCriteriasForTableHierarchy(hierar_table).size()>0)
+		           dbc.projection(hierar,curr_crit,curr_table,curr_order,true);
+		          }
+	      if(ret!=null&&ret.size()==0)
+		    return null;
 	      return ret;
 	}
 	

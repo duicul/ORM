@@ -8,7 +8,9 @@ import connector.CriteriaSet;
 import connector.DatabaseConnector;
 import connector.MariaDBConnector;
 import exception.CommunicationException;
+import exception.ConstructorException;
 import exception.DbDriverNotFound;
+import exception.DeleteComposition;
 import orm.ORMConverter;
 import orm.ORMLoader;
 
@@ -17,14 +19,14 @@ public class Main {
          for(Table t:ORMConverter.getRelatingTables(ORMConverter.extractHierarchicalData(StudentLiterature.class)))
                System.out.println(t.name());
          try {
-               DatabaseConnector dbc=new MariaDBConnector(3306,"127.0.0.1","root","", "demo_orm",false);
+               DatabaseConnector dbc=new MariaDBConnector(3306,"127.0.0.1","root","", "demo_orm",true);
                //SELECT LAST_INSERT_ID();
                ORMLoader ol=new ORMLoader(dbc);
-               //ol.dropTable(StudentLiterature.class);
-               //ol.get(Student.class,"name", "Popa");
+               ol.dropTable(StudentLiterature.class);
                CriteriaSet c=ol.setCriteria(StudentLiterature.class);
-               //c.lt("grade", 8);
-               //c.like("Model", "Gic%");
+               c.gt("Value", 7);
+               //c.like("Model", "d%");
+               //c.like("specialization","Drama");
                //c.orderAsc("grade");
                List<Car> lc=new ArrayList<Car>();
                lc.add(new Car("a","b","c"));
@@ -32,7 +34,7 @@ public class Main {
                List<Car> lc1=new ArrayList<Car>();
                lc1.add(new Car("q","r","t"));
                //ol.insert(new People(null,"Fane"));
-               ol.insert(new StudentLiterature(lc,9, "Drama", "Gica",new Nota((float) 7.8)));
+               ol.insert(new StudentLiterature(lc,5, "Drama", "Gica",new Nota((float) 7.8)));
                ol.insert(new StudentLiterature(lc1,9, "Mate", "Boss",new Nota((float) 3)));
 		List<Object> ls=c.extract();
 		c.remove();
@@ -50,7 +52,16 @@ public class Main {
 	} catch ( DbDriverNotFound | CommunicationException e1) {
 		// TODO Auto-generated catch block
 		e1.printStackTrace();
-	}
+	} catch (ConstructorException e) {
+	    // TODO Auto-generated catch block
+	    e.printStackTrace();
+      } catch (SecurityException e) {
+	    // TODO Auto-generated catch block
+	    e.printStackTrace();
+      } catch (DeleteComposition e) {
+	    // TODO Auto-generated catch block
+	    e.printStackTrace();
+      }
 	 
 	 //ol.insert(new Student(null,5,"Popa"));
 	 

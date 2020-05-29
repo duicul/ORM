@@ -20,9 +20,11 @@ import exception.ConstructorException;
 import exception.DbDriverNotFound;
 import orm.ColumnData;
 import orm.ColumnValue;
+import orm.ORMConverter;
 import orm.TableData;
 import orm.TableHierarchyData;
 import orm.TableValue;
+import test.StudentLiterature;
 
 public class MariaDBConnector extends DatabaseConnector {
 	public final String driver;
@@ -100,7 +102,9 @@ public class MariaDBConnector extends DatabaseConnector {
 	
 	@Override
 	public List<Object> projection(List<TableData> hierarchy,List<Criteria> criters,TableData current_table,String order,boolean remove) throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException {
-		try{
+		try{	
+		      if(criters.size()==0 && remove)
+			    return new ArrayList<Object>();
 			Class.forName(this.driver);  
 			Connection con=DriverManager.getConnection(  
 			"jdbc:mysql://127.0.0.1:3306/"+database,username,password);   
@@ -127,6 +131,7 @@ public class MariaDBConnector extends DatabaseConnector {
 				sql+=" "+criters.get(0).getCriteria()+"  ";
 				for(int i=1;i<criters.size();i++)
 					sql+=" AND "+criters.get(i).getCriteria()+"  ";}
+			
 			if(hierarchy!=null) {
 				if(hierarchy.size()>1) {
 					if(crits)
@@ -148,51 +153,52 @@ public class MariaDBConnector extends DatabaseConnector {
 			Object ret;
 			if(show_querries)
 			      System.out.println(select_querry+sql);
-			ResultSet rs=stmt.executeQuery(select_querry+sql);
-			ResultSetMetaData rsmd = rs.getMetaData();
-			int no_col=rsmd.getColumnCount();
 			List<Object> retlo=new ArrayList<Object>();
-			while(rs.next()) {
-				ret=cons.newInstance();
-				for(int i=1;i<=no_col;i++) {
-					String col_name=rsmd.getColumnName(i);
-					if(current_table.pk!=null&&current_table.pk.autoincrement()&&current_table.pk.name().contentEquals(col_name)) {
+			if(!remove) {
+			      ResultSet rs=stmt.executeQuery(select_querry+sql);
+			      ResultSetMetaData rsmd = rs.getMetaData();
+			      int no_col=rsmd.getColumnCount();
+			      while(rs.next()) {
+				    ret=cons.newInstance();
+				    for(int i=1;i<=no_col;i++) {
+					  String col_name=rsmd.getColumnName(i);
+					  if(current_table.pk!=null&&current_table.pk.autoincrement()&&current_table.pk.name().contentEquals(col_name)) {
 					      Object obj=rs.getObject(i);
 					      current_table.pk_field.set(ret, obj);
 					      continue;}
-					for(ColumnData cd:current_table.lcd) {
-						if(cd.col!=null&&col_name.equals(cd.col.name())) {
-							Object obj=rs.getObject(i);
-							cd.f.set(ret, obj);
-							break;}
-						if(current_table.pk!=null&&col_name.equals(current_table.pk.name())) {
-							Object obj=rs.getObject(i);
-							current_table.pk_field.set(ret, obj);
-							break;}
-					}
-					for(TableData td:hierarchy) {
-					      if(td.pk!=null&&td.pk.autoincrement()&&td.pk.name().contentEquals(col_name)) {
-						      Object obj=rs.getObject(i);
-						      td.pk_field.set(ret,obj);
-						      break;}
-						for(ColumnData cd:td.lcd) {
-							if(cd.col!=null&&col_name.equals(cd.col.name())) {
-								Object obj=rs.getObject(i);
-								cd.f.set(ret, obj);
-								break;}
-						}
-					}
-				}
+            					for(ColumnData cd:current_table.lcd) {
+            						if(cd.col!=null&&col_name.equals(cd.col.name())) {
+            							Object obj=rs.getObject(i);
+            							cd.f.set(ret, obj);
+            							break;}
+            						if(current_table.pk!=null&&col_name.equals(current_table.pk.name())) {
+            							Object obj=rs.getObject(i);
+            							current_table.pk_field.set(ret, obj);
+            							break;}
+            					}		
+            					for(TableData td:hierarchy) {
+            					      if(td.pk!=null&&td.pk.autoincrement()&&td.pk.name().contentEquals(col_name)) {
+            						      Object obj=rs.getObject(i);
+            						      td.pk_field.set(ret,obj);
+            						      break;}
+            						for(ColumnData cd:td.lcd) {
+            							if(cd.col!=null&&col_name.equals(cd.col.name())) {
+            								Object obj=rs.getObject(i);
+            								cd.f.set(ret, obj);
+            								break;}
+            						}
+            					}
+				    	}
 				retlo.add(ret);
-	      }
-	      if(remove) {
-		    if(show_querries)
-			      System.out.println(delete_querry+sql);
-		    stmt.executeUpdate(delete_querry+sql);
-	      }
-			
-	      con.close();   
-	      return retlo;
+			      }			     
+			}
+			if(remove) {
+			      if(show_querries)
+				    System.out.println(delete_querry+sql);
+			      stmt.executeUpdate(delete_querry+sql);
+			}
+			con.close();
+			 return retlo;
 		}catch(NoSuchMethodException e) {
 			e.printStackTrace();
 			throw new ConstructorException(current_table.class_name.toString());
@@ -323,6 +329,74 @@ public class MariaDBConnector extends DatabaseConnector {
       public boolean cleanTable(List<Table> t) {
 	    // TODO Auto-generated method stub
 	    return false;
+      }
+
+      @Override
+      public void delete(List<TableData> hierarchy, List<Criteria> criters, TableData current_table)
+		  throws ConstructorException, DbDriverNotFound, SecurityException, CommunicationException {
+	    try{
+			Class.forName(this.driver);  
+			Connection con=DriverManager.getConnection(  
+			"jdbc:mysql://127.0.0.1:3306/"+database,username,password);   
+			Statement stmt=con.createStatement();
+			String delete_querry=" DELETE ";
+			String sql = " ";
+			boolean first=true;
+			for(Table td:ORMConverter.getRelatingTables(ORMConverter.extractHierarchicalData(current_table.class_name)))
+			      if(td!=null) {
+				    if(!first) {
+					delete_querry+=" , ";}
+				delete_querry+=td.name();
+				first=false;}
+			boolean crits=false;
+			first=true;
+			delete_querry+=" FROM ";
+			for(Table td:ORMConverter.getRelatingTables(ORMConverter.extractHierarchicalData(current_table.class_name)))
+			      if(td!=null) {
+				    if(!first) {
+					delete_querry+=" FULL JOIN ";}
+				delete_querry+=td.name();
+				first=false;}
+			
+			if(criters.size()>0) {
+				crits=true;
+				sql+=" WHERE ";
+				sql+=" "+criters.get(0).getCriteria()+"  ";
+				for(int i=1;i<criters.size();i++)
+					sql+=" AND "+criters.get(i).getCriteria()+"  ";}
+			
+			if(hierarchy!=null) {
+				if(hierarchy.size()>1) {
+					if(crits)
+						sql+=" AND ";
+					else sql+=" WHERE ";
+					TableData tdmain=hierarchy.get(0),tdmain1=hierarchy.get(1);
+					if(tdmain!=null)
+					      sql+=tdmain.table.name()+"."+tdmain1.pk.name()+"="+tdmain1.table.name()+"."+tdmain1.pk.name();
+					for(int i=2;i<hierarchy.size();i++) {
+						TableData prev,curr;
+						prev=hierarchy.get(i-1);
+						curr=hierarchy.get(i);
+						if(prev!=null&&curr!=null)
+						      sql+=" AND "+prev.table.name()+"."+curr.pk.name()+"="+curr.table.name()+"."+curr.pk.name();}
+				}
+			}
+			if(show_querries)
+				    System.out.println(delete_querry+sql);
+			stmt.executeUpdate(delete_querry+sql);
+			
+			con.close();
+		}catch (SQLException e) {
+			e.printStackTrace();
+			throw new CommunicationException();
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+			throw new DbDriverNotFound();
+		} catch (IllegalArgumentException e) {
+			e.printStackTrace();
+			throw new ConstructorException(current_table.class_name.toString());
+		}
+	    
       }
 
 }
